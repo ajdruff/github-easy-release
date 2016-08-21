@@ -13,15 +13,15 @@ var liquid = require("gulp-liquid");
 var rename = require("gulp-rename");
 var packagejson;
 var config;//
-
-
+var ghparse = require('parse-github-repo-url')
 
 
 //Set Configuration Variables
 
- setConfig();
- 
- setPackageJson();
+setConfig();
+
+setPackageJson();
+
 
 gulp.task('check_options', function () {
 
@@ -35,21 +35,20 @@ gulp.task('check_options', function () {
 
 
 
-
 });
 gulp.task('config-package', function () {
     var this_packagejson;
-    var tokenjson={};
+    var tokenjson = {};
     this_packagejson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
     var config = argv.c;
     var key_value = config.split("=", 2);
-    if (key_value[0]==="token") {
-            tokenjson[key_value[0]] = key_value[1];
-    fs.writeFileSync('token.json', JSON.stringify(tokenjson, null, 2));
-    }else {
-         this_packagejson['config'][key_value[0]] = key_value[1];
-    fs.writeFileSync('package.json', JSON.stringify(this_packagejson, null, 2));   
+    if (key_value[0] === "token") {
+        tokenjson[key_value[0]] = key_value[1];
+        fs.writeFileSync('token.json', JSON.stringify(tokenjson, null, 2));
+    } else {
+        this_packagejson['config'][key_value[0]] = key_value[1];
+        fs.writeFileSync('package.json', JSON.stringify(this_packagejson, null, 2));
     }
 
 
@@ -60,11 +59,11 @@ gulp.task('config-package', function () {
 
 
 gulp.task('changelog', function () {
-    
-        if (fs.existsSync('./package.json')) {
+
+    if (fs.existsSync('./package.json')) {
         config = JSON.parse(fs.readFileSync('./package.json')).config;
     }
-    
+
     return gulp.src(config.changelog, {
         buffer: false
     })
@@ -101,6 +100,15 @@ gulp.task('update-gh-pages', function () {
             .pipe(liquid({
                 locals: {CONTENT: fileContent.toString()}
             }))
+
+            .pipe(liquid({
+                locals: {GITHUB_REPO: getGitHubRepoName()}
+            }))
+
+            .pipe(liquid({
+                locals: {GITHUB_USERNAME: getGitHubUserName()}
+            }))
+
             .pipe(rename('index.html'))
             .pipe(gulp.dest('./gh-pages/'));
 });
@@ -116,8 +124,8 @@ gulp.task('update-gh-pages', function () {
  */
 
 function setConfig() {
-    
-   
+
+
     if (fs.existsSync('./package.json')) {
         config = JSON.parse(fs.readFileSync('./package.json')).config;
     } else {
@@ -142,6 +150,57 @@ function setPackageJson() {
         packagejson = {};
     }
 }
+
+/**
+ * Get GitHub Username
+ *
+ * Parses the project's repository url to get its username
+ * ref: https://www.npmjs.com/package/parse-github-repo-url
+ *  
+ * @param void
+ * @return string The GitHub username
+ */
+
+function getGitHubUserName() {
+
+    try {
+        return ghparse(packagejson.repository.url)['0'];
+    } catch (e) {
+        return "";
+    }
+
+
+
+
+
+}
+
+/**
+ * Get GitHub Repo Name
+ *
+ * Parses the project's repository url to get its repo name
+ * ref: https://www.npmjs.com/package/parse-github-repo-url
+ * @param void
+ * @return string The GitHub repo
+ */
+
+function getGitHubRepoName() {
+
+    try {
+        return ghparse(packagejson.repository.url)['1'];
+    } catch (e) {
+        return "";
+    }
+
+
+
+
+
+}
+
+
+
+
 /**
  * Get Package Json Version
  *
@@ -160,11 +219,11 @@ function getPackageJsonVersion() {
  * @return string The github token
  */
 function getGitHubToken() {
-        if (!fs.existsSync('./token.json')) {
-        throw new Error ("GitHub API Token not set.  Run gulp config -c token=GITHUB_TOKEN to set API token.");
+    if (!fs.existsSync('./token.json')) {
+        throw new Error("GitHub API Token not set.  Run gulp config -c token=GITHUB_TOKEN to set API token.");
         return;
     }
-    
+
     // We parse the json file instead of using require because require caches
     // multiple calls so the version number won't be updated
     return JSON.parse(fs.readFileSync('./token.json', 'utf8')).token;
@@ -351,12 +410,12 @@ gulp.task('create-new-tag', function (cb) {
     ;
 });
 gulp.task('updateGhPages', function (callback) {
-        if (!config.ghpages) {
-                    console.log("Skipping gh-pages update per config.ghpages setting");
-                    callback();
+    if (!config.ghpages) {
+        console.log("Skipping gh-pages update per config.ghpages setting");
+        callback();
         return;
     }
-    
+
     runSequence(
             'fetch',
             'checkout-ghpages',
@@ -411,7 +470,7 @@ gulp.task('config', function (callback) {
                 if (error) {
                     console.log(error.message);
                 } else {
-                     console.log('Package configuration updated.' + JSON.stringify(JSON.parse(fs.readFileSync('package.json', 'utf8')).config));
+                    console.log('Package configuration updated.' + JSON.stringify(JSON.parse(fs.readFileSync('package.json', 'utf8')).config));
                 }
                 callback(error);
             });
