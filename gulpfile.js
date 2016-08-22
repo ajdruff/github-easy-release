@@ -11,7 +11,7 @@ var marked = require('marked');
 var fs = require("fs");
 var liquid = require("gulp-liquid");
 var rename = require("gulp-rename");
-var packagejson;
+
 var config;//
 var ghparse = require('parse-github-repo-url')
 
@@ -20,7 +20,6 @@ var ghparse = require('parse-github-repo-url')
 
 setConfig();
 
-setPackageJson();
 
 
 gulp.task('check_options', function () {
@@ -79,9 +78,15 @@ gulp.task('changelog', function () {
 
 
 
-gulp.task('update-gh-pages', function () {
+gulp.task('convert-readme-to-html', function () {
+    if (fs.existsSync("../" + config.readme)) {
+        var fileContent = fs.readFileSync("../" + config.readme, "utf8");
+    } else {
 
-    var fileContent = fs.readFileSync("../" + config.readme, "utf8");
+        throw new Error('Cannot find the ' + config.readme + ". To fix this, set the package.json `readme` setting to the name of your readme file.")
+    }
+
+
     marked.setOptions({
         renderer: new marked.Renderer(),
         gfm: true,
@@ -96,21 +101,22 @@ gulp.task('update-gh-pages', function () {
 
     fileContent = marked(fileContent);
 
-    gulp.src('./gh-pages/_layouts/index.html')
+    return gulp.src('./gh-pages/_layouts/index.html')
             .pipe(liquid({
-                locals: {CONTENT: fileContent.toString()}
+                locals: {
+                    CONTENT: fileContent.toString(),
+                    GITHUB_REPO: getGitHubRepoName(),
+                    GITHUB_USERNAME: getGitHubUserName(),
+                    VERSION_NUMBER: getPackageJsonVersion()
+                }
             }))
 
-            .pipe(liquid({
-                locals: {GITHUB_REPO: getGitHubRepoName()}
-            }))
 
-            .pipe(liquid({
-                locals: {GITHUB_USERNAME: getGitHubUserName()}
-            }))
-
-            .pipe(rename('index.html'))
-            .pipe(gulp.dest('./gh-pages/'));
+            .pipe(rename('readme.html'))
+            .on('end', function () {
+                //console.log('replaced liquid tags')
+            })
+            .pipe(gulp.dest('./gh-pages/cache'));
 });
 
 
@@ -135,21 +141,23 @@ function setConfig() {
 }
 
 /**
- * Set the Package Configuration
+ * Get the Package Configuration
  *
- * Updates the packagejson global variable
+ * Returns the package.json global object
  * @param void
  * @return void
  */
 
-function setPackageJson() {
+function getPackageJson() {
     if (fs.existsSync('../package.json')) {
-        packagejson = JSON.parse(fs.readFileSync('../package.json', 'utf8'));
+        return JSON.parse(fs.readFileSync('../package.json', 'utf8'));
     } else {
 
-        packagejson = {};
+        throw new Error("package.json cannot be found");
     }
 }
+
+
 
 /**
  * Get GitHub Username
@@ -164,7 +172,7 @@ function setPackageJson() {
 function getGitHubUserName() {
 
     try {
-        return ghparse(packagejson.repository.url)['0'];
+        return ghparse(getPackageJson().repository.url)['0'];
     } catch (e) {
         return "";
     }
@@ -187,7 +195,7 @@ function getGitHubUserName() {
 function getGitHubRepoName() {
 
     try {
-        return ghparse(packagejson.repository.url)['1'];
+        return ghparse(getPackageJson().repository.url)['1'];
     } catch (e) {
         return "";
     }
@@ -244,12 +252,7 @@ gulp.task('bump-version', function (cb) {
 
     return  gulp.src(['../bower.json', '../package.json'])
             .pipe(bump({type: argv.t}).on('error', gutil.log))
-            .pipe(gulp.dest('../', function () {
-                setPackageJson(function () {
-                    cb()
-                }); //update package variables
-
-            }));
+            .pipe(gulp.dest('../'));
 
 
 
@@ -290,24 +293,16 @@ gulp.task('commit-changes', function (cb) {
 
 });
 
-gulp.task('push-changes', function (cb) {
+gulp.task('push-master', function (cb) {
     git.push('origin', 'master', cb);
 
 
 });
 
 
-gulp.task('add-gh-pages-index.html', function (cb) {
+gulp.task('push-gh-pages', function (cb) {
+    git.push('origin', 'gh-pages', cb);
 
-    //copy index.html to gh-pages
-    return  gulp.src('../index.html')
-            .pipe(git.add(), function (err) {
-                if (err)
-                    throw err;
-                cb();
-
-
-            });
 
 });
 
@@ -345,17 +340,27 @@ gulp.task('commit-gh-pages', function (cb) {
 
 });
 
-gulp.task('update-gh-pages', function (cb) {
+gulp.task('copy-converted-readme-to-gh-pages-branch', function (cb) {
 
     //copy index.html to gh-pages
-    return gulp.src('./gh-pages/index.html')
+    return gulp.src('./gh-pages/cache/readme.html')
+            .pipe(rename("index.html"))
             .pipe(gulp.dest('../'), function (err) {
                 if (err)
                     throw err;
-                cb();
+
+
+
+            })
+
+            .pipe(git.add(), function (err) {
+                if (err)
+                    throw err;
+
 
 
             });
+
 
 });
 
@@ -404,11 +409,37 @@ gulp.task('create-new-tag', function (cb) {
             return cb(error);
         }
         git.push('origin', 'master', {args: '--tags'}, cb);
-    });
+    }
 
 
-    ;
+    );
+
+
+
 });
+
+gulp.task('sandbox', function (callback) {
+    runSequence(
+            'checkout-master',
+            'convert-readme-to-html',
+            'fetch',
+            'checkout-ghpages',
+            'copy-converted-readme-to-gh-pages-branch',
+            'commit-gh-pages',
+            'push-gh-pages',
+            'checkout-master',
+            function (error) {
+                if (error) {
+                    console.log(error.message);
+                } else {
+                    // console.log('RELEASE ' + getPackageJsonVersion() + ' FINISHED SUCCESSFULLY');
+                }
+                callback(error);
+            });
+});
+
+
+
 gulp.task('updateGhPages', function (callback) {
     if (!config.ghpages) {
         console.log("Skipping gh-pages update per config.ghpages setting");
@@ -417,13 +448,20 @@ gulp.task('updateGhPages', function (callback) {
     }
 
     runSequence(
+            'checkout-master',
+            'convert-readme-to-html',
             'fetch',
             'checkout-ghpages',
-            'update-gh-pages',
-            'add-gh-pages-index.html',
+            'copy-converted-readme-to-gh-pages-branch',
             'commit-gh-pages',
+            'push-gh-pages',
             'checkout-master',
             function (error) {
+                if (error) {
+                    console.log(error.message);
+                } else {
+                    console.log('GitHub Pages updated successfully.');
+                }
                 callback(error);
             });
 });
@@ -434,15 +472,16 @@ gulp.task('_release', function (callback) {
         callback();
         return;
     }
+
     runSequence(
+            'checkout-master',
             'check_options',
             'bump-version',
             'changelog',
             'commit-changes',
-            'push-changes',
+            'push-master',
             'create-new-tag',
             'github-release',
-            'updateGhPages',
             function (error) {
                 callback(error);
             });
@@ -456,7 +495,7 @@ gulp.task('release', function (callback) {
                 if (error) {
                     console.log(error.message);
                 } else {
-                    console.log('RELEASE ' + getPackageJsonVersion() + ' FINISHED SUCCESSFULLY');
+                    console.log('RELEASE ' + getPackageJsonVersion() + ' completed successfully.');
                 }
                 callback(error);
             });
