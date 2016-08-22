@@ -15,11 +15,16 @@
       <h1 class="project-name">{{ GITHUB_REPO }}</h1>
       <h2 class="project-tagline"></h2>
       <a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}" class="btn">View on GitHub</a>
-      <a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}/zipball/master" class="btn">Download .zip</a>
-      <a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}/tarball/master" class="btn">Download .tar.gz</a>
+      <!-- a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}/zipball/master" class="btn">Download .zip</a -->
+       <!-- a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}/tarball/master" class="btn">Download .tar.gz</a -->
+      <a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}/archive/{{ VERSION_NUMBER }}.zip" class="btn">Latest ({{ VERSION_NUMBER }}) .zip</a>
+      <a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}/archive/{{ VERSION_NUMBER }}.tar.gz" class="btn">Latest ({{ VERSION_NUMBER }}) .tar</a>
+      <a href="https://github.com/{{ GITHUB_USERNAME }}/{{ GITHUB_REPO }}/releases" class="btn">All Releases</a>
+
     </section>
 
     <section class="main-content">
+        
       <p>{{ CONTENT }}</p>
 
       <footer class="site-footer">
