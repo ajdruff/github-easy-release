@@ -1,2 +1,3 @@
-node_modules
-token.js
+/node_modules
+/token.json
+/gh-pages/cache
