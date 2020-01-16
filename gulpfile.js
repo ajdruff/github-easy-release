@@ -1,5 +1,5 @@
 var gulp = require('gulp');
-var runSequence = require('run-sequence');
+
 var conventionalChangelog = require('gulp-conventional-changelog');//update changelog
 var conventionalGithubReleaser = require('conventional-github-releaser');
 var bump = require('gulp-bump');//increase version number
@@ -22,8 +22,9 @@ setConfig();
 
 
 
-gulp.task('check_options', function () {
+gulp.task('check_options',  (done)=> {
 
+    
 
 //check version type
     var allowed_types = ["major", "minor", "patch"];
@@ -32,7 +33,7 @@ gulp.task('check_options', function () {
         throw new Error("Invalid version type. Please use the -t option and specify 'major','minor', or 'patch'");
     }
 
-
+done()
 
 });
 gulp.task('config-package', function () {
@@ -64,7 +65,8 @@ gulp.task('changelog', function () {
     }
 
     return gulp.src(config.changelog, {
-        buffer: false
+        buffer: false,
+        allowEmpty:true
     })
             .pipe(conventionalChangelog({
                 preset: 'angular',
@@ -239,18 +241,21 @@ function getGitHubToken() {
 
 gulp.task('github-release', function (done) {
 
+    
     conventionalGithubReleaser({
         type: "oauth",
-        token: getGitHubToken()// To set token, do this : gulp config -c token=YOUR_TOKEN
+        token: getGitHubToken // To set token, do this : gulp config -c token=YOUR_TOKEN
+
     }, {
         preset: 'angular' // Or to any other commit message convention you use.
     }, done);
+    
 });
 
 gulp.task('bump-version', function (cb) {
     // argv.t will supply what kind of version change type  we are releasing 'patch' 'major' or 'minor'
 
-    return  gulp.src(['../bower.json', '../package.json'])
+    return  gulp.src(['../bower.json', '../package.json'],{allowEmpty:true})
             .pipe(bump({type: argv.t}).on('error', gutil.log))
             .pipe(gulp.dest('../'));
 
@@ -418,8 +423,8 @@ gulp.task('create-new-tag', function (cb) {
 
 });
 
-gulp.task('sandbox', function (callback) {
-    runSequence(
+gulp.task('sandbox',
+    gulp.series(
             'checkout-master',
             'convert-readme-to-html',
             'fetch',
@@ -435,19 +440,12 @@ gulp.task('sandbox', function (callback) {
                     // console.log('RELEASE ' + getPackageJsonVersion() + ' FINISHED SUCCESSFULLY');
                 }
                 callback(error);
-            });
-});
+            })
+)
 
 
 
-gulp.task('updateGhPages', function (callback) {
-    if (!config.ghpages) {
-        console.log("Skipping gh-pages update per config.ghpages setting");
-        callback();
-        return;
-    }
-
-    runSequence(
+gulp.task('updateGhPages',   gulp.series(
             'checkout-master',
             'convert-readme-to-html',
             'fetch',
@@ -463,17 +461,12 @@ gulp.task('updateGhPages', function (callback) {
                     console.log('GitHub Pages updated successfully.');
                 }
                 callback(error);
-            });
-});
+            })
+)
 
-gulp.task('_release', function (callback) {
-    if (!config.release) {
-        console.log("Skipping release per config.release setting");
-        callback();
-        return;
-    }
+gulp.task('_release', 
 
-    runSequence(
+    gulp.series(
             'checkout-master',
             'check_options',
             'bump-version',
@@ -482,13 +475,20 @@ gulp.task('_release', function (callback) {
             'push-master',
             'create-new-tag',
             'github-release',
-            function (error) {
-                callback(error);
-            });
-});
+            function (error,responses) {
+                if (error){
+                    console.log(error.message)
+                    callback(error);
+                }
+                else{
+                    console.log('conventional release completed successfully ' + responses)
+                }
+                
+            })
+)
 
-gulp.task('release', function (callback) {
-    runSequence(
+gulp.task('release', 
+    gulp.series(
             '_release',
             'updateGhPages',
             function (error) {
@@ -498,12 +498,12 @@ gulp.task('release', function (callback) {
                     console.log('RELEASE ' + getPackageJsonVersion() + ' completed successfully.');
                 }
                 callback(error);
-            });
-});
+            })
+)
 
 
-gulp.task('config', function (callback) {
-    runSequence(
+gulp.task('config', 
+    gulp.series(
             'config-package',
             function (error) {
                 if (error) {
@@ -512,6 +512,6 @@ gulp.task('config', function (callback) {
                     console.log('Package configuration updated.' + JSON.stringify(JSON.parse(fs.readFileSync('package.json', 'utf8')).config));
                 }
                 callback(error);
-            });
-});
+            })
+)
 
