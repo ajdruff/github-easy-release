@@ -14,7 +14,7 @@
     "gulp-rename": "^2.0.0",
     "gulp-util": "^3.0.8",
     "highlight.js": "^9.17.1",
-    "marked": "^0.8.0",
+    "marked": "^4.0.10",
     "minimist": "^1.2.0",
     "parse-github-repo-url": "^1.4.1",
     "run-sequence": "^2.2.1"
